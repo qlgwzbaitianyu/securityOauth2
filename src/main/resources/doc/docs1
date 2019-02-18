@@ -1,0 +1,6 @@
+1 recrusive json solution 3 approaches:
+@JsonManagedReference
+@JsonBackReference
+
+@JsonIdentityInfo
+
