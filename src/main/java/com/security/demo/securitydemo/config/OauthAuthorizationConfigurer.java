@@ -1,6 +1,8 @@
 package com.security.demo.securitydemo.config;
 
+import com.security.demo.securitydemo.security.CustomJwtTokenEnhancer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,12 +19,12 @@ import org.springframework.security.oauth2.provider.ClientDetails;
 import org.springframework.security.oauth2.provider.ClientDetailsService;
 import org.springframework.security.oauth2.provider.ClientRegistrationException;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
+import org.springframework.security.oauth2.provider.token.TokenEnhancer;
+import org.springframework.security.oauth2.provider.token.TokenEnhancerChain;
 import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 @Configuration
 @EnableAuthorizationServer
@@ -31,28 +33,19 @@ public class OauthAuthorizationConfigurer extends AuthorizationServerConfigurerA
     @Autowired
     private AuthenticationManager authenticationManager;
 
+    @Autowired
+    @Qualifier("jwtTokenStore")
+    private TokenStore tokenStore;
+
+    @Autowired
+    private JwtAccessTokenConverter jwtAccessTokenConverter;
+
+    @Autowired
+    private CustomJwtTokenEnhancer customJwtTokenEnhancer;
+
     @Override
     public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
         security.checkTokenAccess("isAuthenticated()");
-    }
-
-    public ClientDetailsService clientDetailsService() {
-        return new ClientDetailsService() {
-            @Override
-            public ClientDetails loadClientByClientId(String clientId) throws ClientRegistrationException {
-                BaseClientDetails details = new BaseClientDetails();
-                details.setClientId("aaa");
-                details.setClientSecret("$2a$10$5zuH0Tf.JGT2rtRqNU0SVeTxNJWezNzzmzDM4p/0Ifj4JDoj9Pfvu");
-                details.setAuthorizedGrantTypes(Arrays.asList("authorization_code") );
-                details.setScope(Arrays.asList("all"));
-                details.setRegisteredRedirectUri(Collections.singleton("http://anywhere.com"));
-                details.setResourceIds(Arrays.asList("oauth2-resource"));
-                Set<GrantedAuthority> authorities = new HashSet<GrantedAuthority>();
-                authorities.add(new SimpleGrantedAuthority("ROLE_CLIENT"));
-                details.setAuthorities(authorities);
-                return details;
-            }
-        };
     }
 
     @Override
@@ -70,6 +63,15 @@ public class OauthAuthorizationConfigurer extends AuthorizationServerConfigurerA
 
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
-        endpoints.authenticationManager(authenticationManager);
+        endpoints.tokenStore(tokenStore).authenticationManager(authenticationManager);
+        TokenEnhancerChain tokenEnhancerChain = new TokenEnhancerChain();
+        List<TokenEnhancer> enhancers = new ArrayList<>();
+        enhancers.add(customJwtTokenEnhancer);
+        enhancers.add(jwtAccessTokenConverter);
+        tokenEnhancerChain.setTokenEnhancers(enhancers);
+
+        endpoints
+                .tokenEnhancer(tokenEnhancerChain)
+                .accessTokenConverter(jwtAccessTokenConverter);
     }
 }
